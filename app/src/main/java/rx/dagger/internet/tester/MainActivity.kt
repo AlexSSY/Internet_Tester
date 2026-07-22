@@ -4,6 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -11,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.center
@@ -19,6 +26,7 @@ import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +50,7 @@ class MainActivity : ComponentActivity() {
                         name = "Android",
                         modifier = Modifier.padding(innerPadding)
                     )
+                    SpeedMeter()
                 }
             }
         }
@@ -63,6 +72,98 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 //        Greeting("Android")
 //    }
 //}
+
+data class CubicBezier(
+    val p0: Offset,
+    val p1: Offset,
+    val p2: Offset,
+    val p3: Offset
+)
+
+fun arcToBezier(
+    center: Offset,
+    radius: Float,
+    startAngleDeg: Float,
+    endAngleDeg: Float
+): CubicBezier {
+
+    val a0 = Math.toRadians(startAngleDeg.toDouble())
+    val a1 = Math.toRadians(endAngleDeg.toDouble())
+
+    val theta = a1 - a0
+    val k = (4.0 / 3.0 * tan(theta / 4.0)).toFloat()
+
+    fun point(a: Double) = Offset(
+        center.x + radius * cos(a).toFloat(),
+        center.y + radius * sin(a).toFloat()
+    )
+
+    fun tangent(a: Double) = Offset(
+        -sin(a).toFloat(),
+        cos(a).toFloat()
+    )
+
+    val p0 = point(a0)
+    val p3 = point(a1)
+
+    val t0 = tangent(a0)
+    val t1 = tangent(a1)
+
+    val p1 = p0 + t0 * (radius * k)
+    val p2 = p3 - t1 * (radius * k)
+
+    return CubicBezier(p0, p1, p2, p3)
+}
+
+fun spiralArcToBezier(
+    center: Offset,
+    startRadius: Float,
+    pitch: Float,
+    startAngleDeg: Float,
+    endAngleDeg: Float
+): CubicBezier {
+
+    val a0 = Math.toRadians(startAngleDeg.toDouble())
+    val a1 = Math.toRadians(endAngleDeg.toDouble())
+
+    val k = pitch / (2f * Math.PI.toFloat())
+    val h = (a1 - a0).toFloat()
+
+    fun radius(angle: Float) = startRadius + k * angle
+
+    fun point(angle: Float): Offset {
+        val r = radius(angle)
+        return Offset(
+            center.x + r * cos(angle),
+            center.y + r * sin(angle)
+        )
+    }
+
+    fun derivative(angle: Float): Offset {
+        val r = radius(angle)
+
+        return Offset(
+            k * cos(angle) - r * sin(angle),
+            k * sin(angle) + r * cos(angle)
+        )
+    }
+
+    val p0 = point(a0.toFloat())
+    val p3 = point(a1.toFloat())
+
+    val d0 = derivative(a0.toFloat())
+    val d1 = derivative(a1.toFloat())
+
+    val p1 = p0 + d0 * (h / 3f)
+    val p2 = p3 - d1 * (h / 3f)
+
+    return CubicBezier(
+        p0,
+        p1,
+        p2,
+        p3
+    )
+}
 
 data class ArrowDrawOptions(
     val length: Float,
@@ -104,6 +205,19 @@ fun kappa(angleDegrees: Float): Float {
 fun SpeedMeter() {
     val textMeasurer = rememberTextMeasurer()
 
+    val infiniteTransition = rememberInfiniteTransition()
+    val currentValue by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 100f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 10000,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
     Canvas(
         modifier = Modifier
             .size(480.dp)
@@ -112,19 +226,8 @@ fun SpeedMeter() {
             color = Color(0xfff3f5f9)
         )
 
-        val radius = 52f
+        val radius = 42f
         val shadowRadius = radius * 1.4f
-
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.0f to Color(0xff185ef6),
-                    1.0f to Color.White
-                ),
-                radius = shadowRadius
-            ),
-            radius = shadowRadius
-        )
 
         val center = size.center
 
@@ -160,75 +263,6 @@ fun SpeedMeter() {
             style = Stroke(width = backgroundCircleOptions.width)
         )
 
-        val arrowOptions = ArrowDrawOptions(
-            length = 280f,
-            startWidth = 42f,
-            endWidth = 8f
-        )
-
-        val arrow = Path().apply {
-            moveTo(
-                x = center.x,
-                y = center.y
-            )
-
-            lineTo(
-                x = center.x,
-                y = center.y - arrowOptions.startWidth / 2
-            )
-
-            lineTo(
-                x = center.x + arrowOptions.length,
-                y = center.y - arrowOptions.endWidth / 2
-            )
-
-            lineTo(
-                x = center.x + arrowOptions.length,
-                y = center.y + arrowOptions.endWidth / 2
-            )
-
-            lineTo(
-                x = center.x,
-                y = center.y + arrowOptions.startWidth / 2
-            )
-        }
-
-        drawPath(
-            path = arrow,
-            brush = Brush.linearGradient(
-                colorStops = arrayOf(
-                    0.0f to Color(0xff3491e6),
-                    1.0f to Color(0xff185ef6)
-                ),
-                start = Offset(
-                    x = center.x + arrowOptions.length,
-                    y = center.y
-                ),
-                end = Offset(
-                    x = center.x,
-                    y = center.y
-                )
-            )
-        )
-
-        drawCircle(
-            brush = Brush.linearGradient(
-                colorStops = arrayOf(
-                    0.0f to Color(0xff3491e6),
-                    1.0f to Color(0xff185ef6)
-                ),
-                start = Offset(
-                    x = this.center.x,
-                    y = this.center.y - radius
-                ),
-                end = Offset(
-                    x = this.center.x,
-                    y = this.center.y + radius
-                )
-            ),
-            radius = radius
-        )
-
         val numbersOptions = NumbersOptions(
             radius = 320f,
             emptyAngle = 90f,
@@ -260,6 +294,17 @@ fun SpeedMeter() {
             )
         }
 
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0.0f to Color(0xff185ef6),
+                    1.0f to Color.White
+                ),
+                radius = shadowRadius
+            ),
+            radius = shadowRadius
+        )
+
         val progressBarRadius = 380f
         val progressBarStart = pointOnCircle(
             center = center,
@@ -267,8 +312,96 @@ fun SpeedMeter() {
             angleDegrees = startAngle
         )
 
+        val arrowOptions = ArrowDrawOptions(
+            length = 280f,
+            startWidth = 42f,
+            endWidth = 8f
+        )
+
+        val minValue = numbersOptions.steps.min()
+        val maxValue = numbersOptions.steps.max()
+
+        val angle = getAngle(
+            numbersOptions,
+            startAngle,
+            sweepAngle,
+            currentValue
+        )
+
+        val arrow = Path().apply {
+            moveTo(
+                x = center.x,
+                y = center.y
+            )
+
+            lineTo(
+                x = center.x,
+                y = center.y - arrowOptions.startWidth / 2
+            )
+
+            lineTo(
+                x = center.x + arrowOptions.length,
+                y = center.y - arrowOptions.endWidth / 2
+            )
+
+            lineTo(
+                x = center.x + arrowOptions.length,
+                y = center.y + arrowOptions.endWidth / 2
+            )
+
+            lineTo(
+                x = center.x,
+                y = center.y + arrowOptions.startWidth / 2
+            )
+        }
+
+        rotate(
+            degrees = angle,
+            pivot = center
+        ) {
+            drawPath(
+                path = arrow,
+                brush = Brush.linearGradient(
+                    colorStops = arrayOf(
+                        0.0f to Color(0xff3491e6),
+                        1.0f to Color(0xff185ef6)
+                    ),
+                    start = Offset(
+                        x = center.x + arrowOptions.length,
+                        y = center.y
+                    ),
+                    end = Offset(
+                        x = center.x,
+                        y = center.y
+                    )
+                )
+            )
+        }
+
+        drawCircle(
+            brush = Brush.linearGradient(
+                colorStops = arrayOf(
+                    0.0f to Color(0xff3491e6),
+                    1.0f to Color(0xff185ef6)
+                ),
+                start = Offset(
+                    x = this.center.x,
+                    y = this.center.y - radius
+                ),
+                end = Offset(
+                    x = this.center.x,
+                    y = this.center.y + radius
+                )
+            ),
+            radius = radius
+        )
+
         val progressBarMin = 0f
         val progressBarMax = 100
+
+        val delta = angle - startAngle
+        val fullParts = (delta / 90f).toInt()
+        val remainPart = delta % 90f
 
         val progressBarPath = Path().apply {
             moveTo(
@@ -278,14 +411,76 @@ fun SpeedMeter() {
 
             // https://dribbble.com/shots/26150271-Internet-Speed-Test-Mobile-App
 
-            cubicTo(
-                x1 = TODO(),
-                y1 = TODO(),
-                x2 = TODO(),
-                y2 = TODO(),
-                x3 = TODO(),
-                y3 = TODO()
-            )
+            repeat(fullParts) { i ->
+                val cubicBezier = arcToBezier(
+                    center,
+                    progressBarRadius,
+                    startAngle + 90 * i,
+                    startAngle + 90 * i + 90
+                )
+
+                cubicTo(
+                    x1 = cubicBezier.p1.x,
+                    y1 = cubicBezier.p1.y,
+                    x2 = cubicBezier.p2.x,
+                    y2 = cubicBezier.p2.y,
+                    x3 = cubicBezier.p3.x,
+                    y3 = cubicBezier.p3.y
+                )
+            }
+
+            if (remainPart > 0f) {
+                val remainCubicBezier = arcToBezier(
+                    center,
+                    progressBarRadius,
+                    startAngle + 90 * fullParts,
+                    startAngle + 90 * fullParts + remainPart
+                )
+
+                cubicTo(
+                    x1 = remainCubicBezier.p1.x,
+                    y1 = remainCubicBezier.p1.y,
+                    x2 = remainCubicBezier.p2.x,
+                    y2 = remainCubicBezier.p2.y,
+                    x3 = remainCubicBezier.p3.x,
+                    y3 = remainCubicBezier.p3.y
+                )
+            }
         }
+
+        drawPath(
+            path = progressBarPath,
+            color = Color.Blue,
+            style = Stroke(
+                width = 1f
+            )
+        )
     }
+}
+
+private fun getAngle(
+    numbersOptions: NumbersOptions,
+    startAngle: Float,
+    sweepAngle: Float,
+    currentValue: Float
+): Float {
+    val deltaAngle = sweepAngle / (numbersOptions.steps.lastIndex)
+    val exactIndex = numbersOptions.steps.indexOf(currentValue)
+
+    if (exactIndex >= 0) {
+        return startAngle + exactIndex * deltaAngle
+    }
+
+    val fromStep = numbersOptions.steps.last { currentValue > it }
+    val toStep = numbersOptions.steps.first { it > fromStep }
+
+    val fromStepIndex = numbersOptions.steps.indexOf(fromStep)
+    val toStepIndex = numbersOptions.steps.indexOf(toStep)
+
+    val fromStepAngle = startAngle + fromStepIndex * deltaAngle
+    val toStepAngle = startAngle + toStepIndex * deltaAngle
+
+    val betweenLen = toStep - fromStep
+
+    return fromStepAngle + ((currentValue - fromStep) / betweenLen) * deltaAngle
 }
