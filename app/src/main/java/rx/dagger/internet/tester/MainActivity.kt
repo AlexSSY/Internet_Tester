@@ -118,56 +118,6 @@ fun arcToBezier(
     return CubicBezier(p0, p1, p2, p3)
 }
 
-//fun spiralArcToBezier(
-//    center: Offset,
-//    startRadius: Float,
-//    pitch: Float,
-//    startAngleDeg: Float,
-//    endAngleDeg: Float
-//): CubicBezier {
-//
-//    val a0 = Math.toRadians(startAngleDeg.toDouble())
-//    val a1 = Math.toRadians(endAngleDeg.toDouble())
-//
-//    val k = pitch / (2f * Math.PI.toFloat())
-//    val h = (a1 - a0).toFloat()
-//
-//    fun radius(angle: Float) = startRadius + k * angle
-//
-//    fun point(angle: Float): Offset {
-//        val r = radius(angle)
-//        return Offset(
-//            center.x + r * cos(angle),
-//            center.y + r * sin(angle)
-//        )
-//    }
-//
-//    fun derivative(angle: Float): Offset {
-//        val r = radius(angle)
-//
-//        return Offset(
-//            k * cos(angle) - r * sin(angle),
-//            k * sin(angle) + r * cos(angle)
-//        )
-//    }
-//
-//    val p0 = point(a0.toFloat())
-//    val p3 = point(a1.toFloat())
-//
-//    val d0 = derivative(a0.toFloat())
-//    val d1 = derivative(a1.toFloat())
-//
-//    val p1 = p0 + d0 * (h / 3f)
-//    val p2 = p3 - d1 * (h / 3f)
-//
-//    return CubicBezier(
-//        p0,
-//        p1,
-//        p2,
-//        p3
-//    )
-//}
-
 fun spiralArcToBezier(
     center: Offset,
     startRadius: Float,
@@ -385,7 +335,7 @@ fun SpeedMeter() {
         val maxValue = numbersOptions.steps.max()
 
         val angle = getAngle(
-            numbersOptions,
+            numbersOptions.steps,
             startAngle,
             sweepAngle,
             currentValue
@@ -506,52 +456,6 @@ fun SpeedMeter() {
             )
 
             // https://dribbble.com/shots/26150271-Internet-Speed-Test-Mobile-App
-
-//            repeat(fullParts) { i ->
-//                val cubicBezier = arcToBezier(
-//                    center,
-//                    progressBarRadius,
-//                    startAngle + 90 * i,
-//                    startAngle + 90 * i + 90
-//                )
-//
-//                cubicTo(
-//                    x1 = cubicBezier.p1.x,
-//                    y1 = cubicBezier.p1.y,
-//                    x2 = cubicBezier.p2.x,
-//                    y2 = cubicBezier.p2.y,
-//                    x3 = cubicBezier.p3.x,
-//                    y3 = cubicBezier.p3.y
-//                )
-//
-//                lastInnerPoint = Offset(
-//                    x = cubicBezier.p3.x,
-//                    y = cubicBezier.p3.y
-//                )
-//            }
-//
-//            if (remainPart > 0f) {
-//                val remainCubicBezier = arcToBezier(
-//                    center,
-//                    progressBarRadius,
-//                    startAngle + 90 * fullParts,
-//                    startAngle + 90 * fullParts + remainPart
-//                )
-//
-//                cubicTo(
-//                    x1 = remainCubicBezier.p1.x,
-//                    y1 = remainCubicBezier.p1.y,
-//                    x2 = remainCubicBezier.p2.x,
-//                    y2 = remainCubicBezier.p2.y,
-//                    x3 = remainCubicBezier.p3.x,
-//                    y3 = remainCubicBezier.p3.y
-//                )
-//
-//                lastInnerPoint = Offset(
-//                    x = remainCubicBezier.p3.x,
-//                    y = remainCubicBezier.p3.y
-//                )
-//            }
 
             repeat(fullSpiralParts) { i ->
                 val cubicBezier = spiralArcToBezier(
@@ -676,35 +580,28 @@ fun SpeedMeter() {
         drawPath(
             path = progressBarPath,
             brush = brush
-//            brush = Brush.sweepGradient(
-//                colors = listOf(
-//                    Color(0xff1650f5),
-//                    Color(0xff1592f5)
-//                ),
-//                center = center
-//            )
         )
     }
 }
 
-private fun getAngle(
-    numbersOptions: NumbersOptions,
+fun getAngle(
+    dials: List<Float>,
     startAngle: Float,
     sweepAngle: Float,
     currentValue: Float
 ): Float {
-    val deltaAngle = sweepAngle / (numbersOptions.steps.lastIndex)
-    val exactIndex = numbersOptions.steps.indexOf(currentValue)
+    val deltaAngle = sweepAngle / (dials.lastIndex)
+    val exactIndex = dials.indexOf(currentValue)
 
     if (exactIndex >= 0) {
         return startAngle + exactIndex * deltaAngle
     }
 
-    val fromStep = numbersOptions.steps.last { currentValue > it }
-    val toStep = numbersOptions.steps.first { it > fromStep }
+    val fromStep = dials.last { currentValue > it }
+    val toStep = dials.first { it > fromStep }
 
-    val fromStepIndex = numbersOptions.steps.indexOf(fromStep)
-    val toStepIndex = numbersOptions.steps.indexOf(toStep)
+    val fromStepIndex = dials.indexOf(fromStep)
+    val toStepIndex = dials.indexOf(toStep)
 
     val fromStepAngle = startAngle + fromStepIndex * deltaAngle
     val toStepAngle = startAngle + toStepIndex * deltaAngle
