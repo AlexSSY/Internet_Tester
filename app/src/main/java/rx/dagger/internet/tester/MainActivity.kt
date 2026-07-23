@@ -25,8 +25,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -467,6 +469,26 @@ fun SpeedMeter() {
         val fullSpiralParts = (delta / 30f).toInt()
         val remainSpiralPart = delta % 30f
 
+        val circleParts = mutableListOf<CubicBezier>()
+
+        repeat(fullParts) {
+            circleParts.add(arcToBezier(
+                center,
+                progressBarRadius,
+                startAngle + 90 * it,
+                startAngle + 90 * it + 90
+            ))
+        }
+
+        if (remainPart > 0f) {
+            circleParts.add(arcToBezier(
+                center,
+                progressBarRadius,
+                startAngle + 90 * fullParts,
+                startAngle + 90 * fullParts + remainPart
+            ))
+        }
+
         val progressBarPath = Path().apply {
             moveTo(
                 x = progressBarStart.x,
@@ -485,56 +507,51 @@ fun SpeedMeter() {
 
             // https://dribbble.com/shots/26150271-Internet-Speed-Test-Mobile-App
 
-            repeat(fullParts) { i ->
-                val cubicBezier = arcToBezier(
-                    center,
-                    progressBarRadius,
-                    startAngle + 90 * i,
-                    startAngle + 90 * i + 90
-                )
-
-                cubicTo(
-                    x1 = cubicBezier.p1.x,
-                    y1 = cubicBezier.p1.y,
-                    x2 = cubicBezier.p2.x,
-                    y2 = cubicBezier.p2.y,
-                    x3 = cubicBezier.p3.x,
-                    y3 = cubicBezier.p3.y
-                )
-
-                lastInnerPoint = Offset(
-                    x = cubicBezier.p3.x,
-                    y = cubicBezier.p3.y
-                )
-            }
-
-            if (remainPart > 0f) {
-                val remainCubicBezier = arcToBezier(
-                    center,
-                    progressBarRadius,
-                    startAngle + 90 * fullParts,
-                    startAngle + 90 * fullParts + remainPart
-                )
-
-                cubicTo(
-                    x1 = remainCubicBezier.p1.x,
-                    y1 = remainCubicBezier.p1.y,
-                    x2 = remainCubicBezier.p2.x,
-                    y2 = remainCubicBezier.p2.y,
-                    x3 = remainCubicBezier.p3.x,
-                    y3 = remainCubicBezier.p3.y
-                )
-
-                lastInnerPoint = Offset(
-                    x = remainCubicBezier.p3.x,
-                    y = remainCubicBezier.p3.y
-                )
-            }
-
-            moveTo(
-                x = progressBarStart.x,
-                y = progressBarStart.y
-            )
+//            repeat(fullParts) { i ->
+//                val cubicBezier = arcToBezier(
+//                    center,
+//                    progressBarRadius,
+//                    startAngle + 90 * i,
+//                    startAngle + 90 * i + 90
+//                )
+//
+//                cubicTo(
+//                    x1 = cubicBezier.p1.x,
+//                    y1 = cubicBezier.p1.y,
+//                    x2 = cubicBezier.p2.x,
+//                    y2 = cubicBezier.p2.y,
+//                    x3 = cubicBezier.p3.x,
+//                    y3 = cubicBezier.p3.y
+//                )
+//
+//                lastInnerPoint = Offset(
+//                    x = cubicBezier.p3.x,
+//                    y = cubicBezier.p3.y
+//                )
+//            }
+//
+//            if (remainPart > 0f) {
+//                val remainCubicBezier = arcToBezier(
+//                    center,
+//                    progressBarRadius,
+//                    startAngle + 90 * fullParts,
+//                    startAngle + 90 * fullParts + remainPart
+//                )
+//
+//                cubicTo(
+//                    x1 = remainCubicBezier.p1.x,
+//                    y1 = remainCubicBezier.p1.y,
+//                    x2 = remainCubicBezier.p2.x,
+//                    y2 = remainCubicBezier.p2.y,
+//                    x3 = remainCubicBezier.p3.x,
+//                    y3 = remainCubicBezier.p3.y
+//                )
+//
+//                lastInnerPoint = Offset(
+//                    x = remainCubicBezier.p3.x,
+//                    y = remainCubicBezier.p3.y
+//                )
+//            }
 
             repeat(fullSpiralParts) { i ->
                 val cubicBezier = spiralArcToBezier(
@@ -585,34 +602,87 @@ fun SpeedMeter() {
                 )
             }
 
-            val normal = (lastInnerPoint - center).normalize()
+            val lastArc = circleParts.popOrNull()
 
-            val tangent = Offset(
-                -normal.y,
-                normal.x
-            )
+            lastArc?.let {
+                lastInnerPoint = lastArc.p3
+                val normal = (lastArc.p3 - center).normalize()
 
-            val distance = (lastInnerPoint - lastOuterPoint).length()
-            val handle = distance * 0.5f
+                val tangent = Offset(
+                    -normal.y,
+                    normal.x
+                )
 
-            cubicTo(
-                x1 = lastOuterPoint.x + tangent.x * handle,
-                y1 = lastOuterPoint.y + tangent.y * handle,
+                val distance = (lastInnerPoint - lastOuterPoint).length()
+                val handle = distance * 0.5f
 
-                x2 = lastInnerPoint.x + tangent.x * handle,
-                y2 = lastInnerPoint.y + tangent.y * handle,
+                cubicTo(
+                    x1 = lastOuterPoint.x + tangent.x * handle,
+                    y1 = lastOuterPoint.y + tangent.y * handle,
 
-                x3 = lastInnerPoint.x,
-                y3 = lastInnerPoint.y
+                    x2 = lastInnerPoint.x + tangent.x * handle,
+                    y2 = lastInnerPoint.y + tangent.y * handle,
+
+                    x3 = lastInnerPoint.x,
+                    y3 = lastInnerPoint.y
+                )
+
+                cubicTo(
+                    x1 = it.p2.x,
+                    y1 = it.p2.y,
+                    x2 = it.p1.x,
+                    y2 = it.p1.y,
+                    x3 = it.p0.x,
+                    y3 = it.p0.y
+                )
+            }
+
+            while (true) {
+                val arc = circleParts.popOrNull()
+                if (arc == null) break
+                cubicTo(
+                    x1 = arc.p2.x,
+                    y1 = arc.p2.y,
+                    x2 = arc.p1.x,
+                    y2 = arc.p1.y,
+                    x3 = arc.p0.x,
+                    y3 = arc.p0.y
+                )
+            }
+        }
+
+        val shader = android.graphics.SweepGradient(
+            center.x,
+            center.y,
+            intArrayOf(
+                Color(0xff1650f5).toArgb(),
+                Color(0xff1592f5).toArgb()
+            ),
+            null
+        )
+
+        val matrix = android.graphics.Matrix().apply {
+            postRotate(
+                90f,           // сюда ставишь угол, куда хочешь спрятать шов
+                center.x,
+                center.y
             )
         }
 
+        shader.setLocalMatrix(matrix)
+
+        val brush = ShaderBrush(shader)
+
         drawPath(
             path = progressBarPath,
-            color = Color.Blue,
-            style = Stroke(
-                width = 2f
-            )
+            brush = brush
+//            brush = Brush.sweepGradient(
+//                colors = listOf(
+//                    Color(0xff1650f5),
+//                    Color(0xff1592f5)
+//                ),
+//                center = center
+//            )
         )
     }
 }
@@ -664,3 +734,15 @@ operator fun Offset.times(scale: Float) =
 
 operator fun Float.times(offset: Offset) =
     Offset(offset.x * this, offset.y * this)
+
+fun <T> MutableList<T>.popOrNull(): T? {
+    if (this.isEmpty()) return null
+    return this.removeAt(this.lastIndex)
+}
+
+fun <T> MutableList<T>.pop(): T {
+    if (this.isEmpty()) {
+        throw NoSuchElementException("List is empty.")
+    }
+    return this.removeAt(this.lastIndex)
+}
