@@ -37,6 +37,7 @@ import rx.dagger.internet.tester.ui.theme.InternetTesterTheme
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.math.tan
 
 class MainActivity : ComponentActivity() {
@@ -115,32 +116,90 @@ fun arcToBezier(
     return CubicBezier(p0, p1, p2, p3)
 }
 
+//fun spiralArcToBezier(
+//    center: Offset,
+//    startRadius: Float,
+//    pitch: Float,
+//    startAngleDeg: Float,
+//    endAngleDeg: Float
+//): CubicBezier {
+//
+//    val a0 = Math.toRadians(startAngleDeg.toDouble())
+//    val a1 = Math.toRadians(endAngleDeg.toDouble())
+//
+//    val k = pitch / (2f * Math.PI.toFloat())
+//    val h = (a1 - a0).toFloat()
+//
+//    fun radius(angle: Float) = startRadius + k * angle
+//
+//    fun point(angle: Float): Offset {
+//        val r = radius(angle)
+//        return Offset(
+//            center.x + r * cos(angle),
+//            center.y + r * sin(angle)
+//        )
+//    }
+//
+//    fun derivative(angle: Float): Offset {
+//        val r = radius(angle)
+//
+//        return Offset(
+//            k * cos(angle) - r * sin(angle),
+//            k * sin(angle) + r * cos(angle)
+//        )
+//    }
+//
+//    val p0 = point(a0.toFloat())
+//    val p3 = point(a1.toFloat())
+//
+//    val d0 = derivative(a0.toFloat())
+//    val d1 = derivative(a1.toFloat())
+//
+//    val p1 = p0 + d0 * (h / 3f)
+//    val p2 = p3 - d1 * (h / 3f)
+//
+//    return CubicBezier(
+//        p0,
+//        p1,
+//        p2,
+//        p3
+//    )
+//}
+
 fun spiralArcToBezier(
     center: Offset,
     startRadius: Float,
     pitch: Float,
-    startAngleDeg: Float,
-    endAngleDeg: Float
+    rotationDeg: Float,
+    startSweepDeg: Float,
+    endSweepDeg: Float
 ): CubicBezier {
 
-    val a0 = Math.toRadians(startAngleDeg.toDouble())
-    val a1 = Math.toRadians(endAngleDeg.toDouble())
+    val k = pitch / (2f * PI.toFloat())
 
-    val k = pitch / (2f * Math.PI.toFloat())
-    val h = (a1 - a0).toFloat()
+    val rotation = Math.toRadians(rotationDeg.toDouble()).toFloat()
 
-    fun radius(angle: Float) = startRadius + k * angle
+    val t0 = Math.toRadians(startSweepDeg.toDouble()).toFloat()
+    val t1 = Math.toRadians(endSweepDeg.toDouble()).toFloat()
 
-    fun point(angle: Float): Offset {
-        val r = radius(angle)
+    val h = t1 - t0
+
+    fun radius(t: Float) =
+        startRadius + k * t
+
+    fun point(t: Float): Offset {
+        val angle = rotation + t
+        val r = radius(t)
+
         return Offset(
             center.x + r * cos(angle),
             center.y + r * sin(angle)
         )
     }
 
-    fun derivative(angle: Float): Offset {
-        val r = radius(angle)
+    fun derivative(t: Float): Offset {
+        val angle = rotation + t
+        val r = radius(t)
 
         return Offset(
             k * cos(angle) - r * sin(angle),
@@ -148,20 +207,20 @@ fun spiralArcToBezier(
         )
     }
 
-    val p0 = point(a0.toFloat())
-    val p3 = point(a1.toFloat())
+    val p0 = point(t0)
+    val p3 = point(t1)
 
-    val d0 = derivative(a0.toFloat())
-    val d1 = derivative(a1.toFloat())
+    val d0 = derivative(t0)
+    val d1 = derivative(t1)
 
     val p1 = p0 + d0 * (h / 3f)
     val p2 = p3 - d1 * (h / 3f)
 
     return CubicBezier(
-        p0,
-        p1,
-        p2,
-        p3
+        p0 = p0,
+        p1 = p1,
+        p2 = p2,
+        p3 = p3
     )
 }
 
@@ -217,6 +276,8 @@ fun SpeedMeter() {
             repeatMode = RepeatMode.Reverse
         )
     )
+
+//    val currentValue = 3.4f
 
     Canvas(
         modifier = Modifier
@@ -403,8 +464,21 @@ fun SpeedMeter() {
         val fullParts = (delta / 90f).toInt()
         val remainPart = delta % 90f
 
+        val fullSpiralParts = (delta / 30f).toInt()
+        val remainSpiralPart = delta % 30f
+
         val progressBarPath = Path().apply {
             moveTo(
+                x = progressBarStart.x,
+                y = progressBarStart.y
+            )
+
+            var lastInnerPoint = Offset(
+                x = progressBarStart.x,
+                y = progressBarStart.y
+            )
+
+            var lastOuterPoint = Offset(
                 x = progressBarStart.x,
                 y = progressBarStart.y
             )
@@ -427,6 +501,11 @@ fun SpeedMeter() {
                     x3 = cubicBezier.p3.x,
                     y3 = cubicBezier.p3.y
                 )
+
+                lastInnerPoint = Offset(
+                    x = cubicBezier.p3.x,
+                    y = cubicBezier.p3.y
+                )
             }
 
             if (remainPart > 0f) {
@@ -445,14 +524,94 @@ fun SpeedMeter() {
                     x3 = remainCubicBezier.p3.x,
                     y3 = remainCubicBezier.p3.y
                 )
+
+                lastInnerPoint = Offset(
+                    x = remainCubicBezier.p3.x,
+                    y = remainCubicBezier.p3.y
+                )
             }
+
+            moveTo(
+                x = progressBarStart.x,
+                y = progressBarStart.y
+            )
+
+            repeat(fullSpiralParts) { i ->
+                val cubicBezier = spiralArcToBezier(
+                    center,
+                    progressBarRadius,
+                    128f,
+                    135f,
+                    0f + 30 * i,
+                    0f + 30 * i + 30
+                )
+
+                cubicTo(
+                    x1 = cubicBezier.p1.x,
+                    y1 = cubicBezier.p1.y,
+                    x2 = cubicBezier.p2.x,
+                    y2 = cubicBezier.p2.y,
+                    x3 = cubicBezier.p3.x,
+                    y3 = cubicBezier.p3.y
+                )
+
+                lastOuterPoint = Offset(
+                    x = cubicBezier.p3.x,
+                    y = cubicBezier.p3.y
+                )
+            }
+
+            if (remainSpiralPart > 0f) {
+                val remainCubicBezier = spiralArcToBezier(
+                    center,
+                    progressBarRadius, 128f,
+                    135f,
+                    0f + 30 * fullSpiralParts,
+                    0f + 30 * fullSpiralParts + remainSpiralPart
+                )
+
+                cubicTo(
+                    x1 = remainCubicBezier.p1.x,
+                    y1 = remainCubicBezier.p1.y,
+                    x2 = remainCubicBezier.p2.x,
+                    y2 = remainCubicBezier.p2.y,
+                    x3 = remainCubicBezier.p3.x,
+                    y3 = remainCubicBezier.p3.y
+                )
+
+                lastOuterPoint = Offset(
+                    x = remainCubicBezier.p3.x,
+                    y = remainCubicBezier.p3.y
+                )
+            }
+
+            val normal = (lastInnerPoint - center).normalize()
+
+            val tangent = Offset(
+                -normal.y,
+                normal.x
+            )
+
+            val distance = (lastInnerPoint - lastOuterPoint).length()
+            val handle = distance * 0.5f
+
+            cubicTo(
+                x1 = lastOuterPoint.x + tangent.x * handle,
+                y1 = lastOuterPoint.y + tangent.y * handle,
+
+                x2 = lastInnerPoint.x + tangent.x * handle,
+                y2 = lastInnerPoint.y + tangent.y * handle,
+
+                x3 = lastInnerPoint.x,
+                y3 = lastInnerPoint.y
+            )
         }
 
         drawPath(
             path = progressBarPath,
             color = Color.Blue,
             style = Stroke(
-                width = 1f
+                width = 2f
             )
         )
     }
@@ -484,3 +643,24 @@ private fun getAngle(
 
     return fromStepAngle + ((currentValue - fromStep) / betweenLen) * deltaAngle
 }
+
+fun Offset.length(): Float =
+    sqrt(x * x + y * y)
+
+
+fun Offset.normalize(): Offset {
+    val len = length()
+    return if (len == 0f) Offset.Zero else this * (1f / len)
+}
+
+operator fun Offset.plus(other: Offset) =
+    Offset(x + other.x, y + other.y)
+
+operator fun Offset.minus(other: Offset) =
+    Offset(x - other.x, y - other.y)
+
+operator fun Offset.times(scale: Float) =
+    Offset(x * scale, y * scale)
+
+operator fun Float.times(offset: Offset) =
+    Offset(offset.x * this, offset.y * this)
