@@ -11,13 +11,26 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.center
@@ -35,12 +48,66 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import rx.dagger.internet.tester.ui.theme.InternetTesterTheme
+import java.io.BufferedInputStream
+import java.io.IOException
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.tan
+
+@Composable
+fun rememberNetworkSpeed(): Pair<(Int) -> Unit, State<Float>> {
+    val bytesReceived = remember { mutableLongStateOf(0L) }
+    val speed = remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        var lastBytes = 0L
+        var lastTime = System.nanoTime()
+
+        while (true) {
+            delay(200)
+
+            val now = System.nanoTime()
+
+            val bytes = bytesReceived.longValue - lastBytes
+            val seconds = (now - lastTime) / 1_000_000_000f
+
+            speed.floatValue =
+                bytes * 8f / seconds / 1_000_000f
+
+            lastBytes = bytesReceived.longValue
+            lastTime = now
+        }
+    }
+
+    val onBytesReceived: (Int) -> Unit = { count ->
+        bytesReceived.longValue += count
+    }
+
+    return onBytesReceived to speed
+}
+
+fun openDownloadStream(url: String): InputStream {
+    val connection = URL(url).openConnection() as HttpURLConnection
+
+    connection.requestMethod = "GET"
+    connection.connectTimeout = 10_000
+    connection.readTimeout = 10_000
+    connection.connect()
+
+    if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+        throw IOException("HTTP ${connection.responseCode}")
+    }
+
+    return BufferedInputStream(connection.inputStream)
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,11 +116,48 @@ class MainActivity : ComponentActivity() {
         setContent {
             InternetTesterTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                    SpeedMeter()
+//                    val infiniteTransition = rememberInfiniteTransition()
+//                    val currentValue by infiniteTransition.animateFloat(
+//                        initialValue = 0f,
+//                        targetValue = 100f,
+//                        animationSpec = infiniteRepeatable(
+//                            animation = tween(
+//                                durationMillis = 10000,
+//                                easing = LinearEasing
+//                            ),
+//                            repeatMode = RepeatMode.Reverse
+//                        )
+//                    )
+
+                    val fileUrl = "https://drive.google.com/file/d/1GGP58vjoC8VfGM0NN16eXbRsujJfTgW3/view?usp=sharing"
+
+                    val (onBytesReceived, speed) = rememberNetworkSpeed()
+                    val currentValue = 0f
+
+                    val homeViewModel: HomeViewModel = viewModel()
+                    val speedValue = homeViewModel.speed.collectAsState()
+
+                    Column(
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        SpeedMeterWidget(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(400.dp),
+                            currentValue = speedValue.value
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                homeViewModel.start()
+                            }
+                        ) {
+                            Text("Start")
+                        }
+                    }
                 }
             }
         }
@@ -213,7 +317,7 @@ fun kappa(angleDegrees: Float): Float {
 
 @Preview
 @Composable
-fun SpeedMeter() {
+fun SpeedMeterP() {
     val textMeasurer = rememberTextMeasurer()
 
     val infiniteTransition = rememberInfiniteTransition()

@@ -34,7 +34,7 @@ fun SpeedMeterPreview400() {
         color = Color.Green,
         colorLight = Color.Cyan,
         dialValues = listOf(1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f),
-        backgroundColor = Color.Gray,
+        backgroundColor = Color.Black,
         backgroundCircleLinearGradientStart = Color.Magenta,
         backgroundCircleLinearGradientEnd = Color.Red,
         textColor = Color.White
@@ -504,8 +504,7 @@ private fun DrawScope.drawSpiralProgressBar(
         }
 
         while (true) {
-            val arc = circleParts.popOrNull()
-            if (arc == null) break
+            val arc = circleParts.popOrNull() ?: break
             cubicTo(
                 x1 = arc.p2.x,
                 y1 = arc.p2.y,
