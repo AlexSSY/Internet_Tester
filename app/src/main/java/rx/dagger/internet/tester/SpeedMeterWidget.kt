@@ -23,13 +23,48 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Preview
 @Composable
-fun SpeedMeterPreview() {
+fun SpeedMeterPreview400() {
     SpeedMeterWidget(
         modifier = Modifier.size(400.dp),
-        currentValue = 50f
+        currentValue = 8.3f,
+        color = Color.Green,
+        colorLight = Color.Cyan,
+        dialValues = listOf(1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f),
+        backgroundColor = Color.Gray,
+        backgroundCircleLinearGradientStart = Color.Magenta,
+        backgroundCircleLinearGradientEnd = Color.Red,
+        textColor = Color.White
+    )
+}
+
+@Preview
+@Composable
+fun SpeedMeterPreview300() {
+    SpeedMeterWidget(
+        modifier = Modifier.size(300.dp),
+        currentValue = 80f
+    )
+}
+
+@Preview
+@Composable
+fun SpeedMeterPreview200() {
+    SpeedMeterWidget(
+        modifier = Modifier.size(200.dp),
+        currentValue = 60f
+    )
+}
+
+@Preview
+@Composable
+fun SpeedMeterPreview100() {
+    SpeedMeterWidget(
+        modifier = Modifier.size(100.dp),
+        currentValue = 20f
     )
 }
 
@@ -40,9 +75,12 @@ fun SpeedMeterWidget(
         0f, 1f, 5f, 10f, 15f, 20f, 30f, 40f, 60f, 80f, 100f
     ),
     currentValue: Float = 0f,
-    color: Color = Color.Blue,
-    colorLight: Color = Color.LightGray,
-    backgroundColor: Color = Color(0xfff3f5f9)
+    color: Color = Color(0xff1650f5),
+    colorLight: Color = Color(0xff1592f5),
+    backgroundCircleLinearGradientStart: Color = Color(0xffc8d6f8),
+    backgroundCircleLinearGradientEnd: Color = Color(0xffc6e2f8),
+    backgroundColor: Color = Color(0xfff3f5f9),
+    textColor: Color = Color.Black
 ) {
     DialModerator(dialValues).moderate()
     val normalizedCurrentValue =
@@ -50,38 +88,56 @@ fun SpeedMeterWidget(
 
     val textMeasurer = rememberTextMeasurer()
 
+    val shadowFraction = 1.4f
     Canvas(
         modifier = modifier
     ) {
-        val radius = 42f
-        val shadowRadius = radius * 1.4f
+        val radius = 0.04f * size.minDimension
         val center = size.center
+
         val emptyAngle = 90f
         val startAngle = 90f + emptyAngle / 2
         val sweepAngle = 360f - emptyAngle
 
         drawBackground(color = backgroundColor)
-        drawBackgroundCircle()
-        drawArrowPinShadow(shadowRadius = radius * 1.4f)
+        drawBackgroundCircle(
+            linearGradientColorStart = backgroundCircleLinearGradientStart,
+            linearGradientColorEnd = backgroundCircleLinearGradientEnd
+        )
+        drawArrowPinShadow(
+            shadowRadius = radius * shadowFraction,
+            color = color,
+            backgroundColor = backgroundColor
+        )
         
         val arrowAngle = getAngle(
             dials = dialValues,
             startAngle = startAngle,
             sweepAngle = sweepAngle,
-            currentValue = currentValue,
+            currentValue = normalizedCurrentValue,
         )
         drawArrow(
             angle = arrowAngle,
-            center = center
+            center = center,
+            linearGradientColorStart = colorLight,
+            linearGradientColorEnd = color
         )
 
-        drawArrowPin(radius)
+        drawArrowPin(
+            radius = radius,
+            linearGradientColorStart = colorLight,
+            linearGradientColorEnd = color
+        )
         drawDials(
-            textMeasurer = textMeasurer
+            textMeasurer = textMeasurer,
+            dials = dialValues,
+            textColor = textColor
         )
         drawSpiralProgressBar(
             angle = arrowAngle,
-            startAngle = startAngle
+            startAngle = startAngle,
+            sweepGradientStartColor = color,
+            sweepGradientEndColor = colorLight
         )
     }
 }
@@ -148,13 +204,20 @@ private fun Path.buildArrow(
 }
 
 private fun DrawScope.drawBackgroundCircle(
-    radius: Float = 240f,
-    width: Float = 32f
+    radiusFraction: Float = 0.57f,
+    widthFraction: Float = 0.05f,
+    linearGradientColorStart: Color,
+    linearGradientColorEnd: Color
 ) {
+    val diameter = size.minDimension
+
+    val width = diameter * widthFraction
+    val radius = diameter * radiusFraction / 2f - width / 2f
+
     val linearGradientStart = pointOnCircle(
         center = center,
         radius = radius + width / 2,
-        angleDegrees = 180 + 45f
+        angleDegrees = 225f
     )
 
     val linearGradientEnd = pointOnCircle(
@@ -166,8 +229,8 @@ private fun DrawScope.drawBackgroundCircle(
     drawCircle(
         brush = Brush.linearGradient(
             colorStops = arrayOf(
-                0.0f to Color(0xffc8d6f8),
-                1.0f to Color(0xffc6e2f8)
+                0.0f to linearGradientColorStart,
+                1.0f to linearGradientColorEnd
             ),
             start = linearGradientStart,
             end = linearGradientEnd
@@ -179,14 +242,17 @@ private fun DrawScope.drawBackgroundCircle(
 
 private fun DrawScope.drawDials(
     textMeasurer: TextMeasurer,
+    textColor: Color,
     dials: List<Float> = listOf(
         0f, 1f, 5f, 10f, 15f, 20f, 30f, 40f, 60f, 80f, 100f
     ),
-    radius: Float = 320f,
+    radiusFraction: Float = 0.35f,
+    fontSizeFraction: Float = 0.013f,
     emptyAngle: Float = 90f,
 ) {
     val sweepAngle = 360f - emptyAngle
     val startAngle = 90f + emptyAngle / 2
+    val radius = size.minDimension * radiusFraction
 
     dials.forEachIndexed { i, n ->
         val deltaAngle = sweepAngle / (dials.lastIndex)
@@ -195,7 +261,8 @@ private fun DrawScope.drawDials(
         val textLayoutResult = textMeasurer.measure(
             text = n.toInt().toString(),
             style = TextStyle.Default.copy(
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                fontSize = (size.minDimension * fontSizeFraction).sp
             )
         )
 
@@ -204,19 +271,22 @@ private fun DrawScope.drawDials(
             topLeft = Offset(
                 pos.x - textLayoutResult.size.width / 2,
                 pos.y - textLayoutResult.size.height / 2
-            )
+            ),
+            color = textColor
         )
     }
 }
 
 private fun DrawScope.drawArrowPin(
-    radius: Float
+    radius: Float,
+    linearGradientColorStart: Color,
+    linearGradientColorEnd: Color
 ) {
     drawCircle(
         brush = Brush.linearGradient(
             colorStops = arrayOf(
-                0.0f to Color(0xff3491e6),
-                1.0f to Color(0xff185ef6)
+                0.0f to linearGradientColorStart,
+                1.0f to linearGradientColorEnd
             ),
             start = Offset(
                 x = this.center.x,
@@ -232,13 +302,15 @@ private fun DrawScope.drawArrowPin(
 }
 
 private fun DrawScope.drawArrowPinShadow(
-    shadowRadius: Float
+    shadowRadius: Float,
+    color: Color,
+    backgroundColor: Color
 ) {
     drawCircle(
         brush = Brush.radialGradient(
             colorStops = arrayOf(
-                0.0f to Color(0xff185ef6),
-                1.0f to Color.White
+                0.0f to color,
+                1.0f to backgroundColor
             ),
             radius = shadowRadius
         ),
@@ -249,10 +321,16 @@ private fun DrawScope.drawArrowPinShadow(
 private fun DrawScope.drawArrow(
     angle: Float,
     center: Offset,
-    length: Float = 280f,
-    startWidth: Float = 42f,
-    endWidth: Float = 8f
+    linearGradientColorStart: Color,
+    linearGradientColorEnd: Color,
+    lengthFraction: Float = 0.31f,
+    startWidthFraction: Float = 0.042f,
+    endWidthFraction: Float = 0.008f
 ) {
+    val length = size.minDimension * lengthFraction
+    val startWidth = size.minDimension * startWidthFraction
+    val endWidth = size.minDimension * endWidthFraction
+
     rotate(
         degrees = angle,
         pivot = center
@@ -266,8 +344,8 @@ private fun DrawScope.drawArrow(
             ),
             brush = Brush.linearGradient(
                 colorStops = arrayOf(
-                    0.0f to Color(0xff3491e6),
-                    1.0f to Color(0xff185ef6)
+                    0.0f to linearGradientColorStart,
+                    1.0f to linearGradientColorEnd
                 ),
                 start = Offset(
                     x = center.x + length,
@@ -285,8 +363,13 @@ private fun DrawScope.drawArrow(
 private fun DrawScope.drawSpiralProgressBar(
     angle: Float,
     startAngle: Float,
-    progressBarRadius: Float = 380f,
+    sweepGradientStartColor: Color,
+    sweepGradientEndColor: Color,
+    progressBarRadiusFraction: Float = 0.4f,
+    pitchFraction: Float = 0.12f,
 ) {
+    val progressBarRadius = size.minDimension * progressBarRadiusFraction
+
     val progressBarStart = pointOnCircle(
         center = center,
         radius = progressBarRadius,
@@ -326,10 +409,7 @@ private fun DrawScope.drawSpiralProgressBar(
             y = progressBarStart.y
         )
 
-        var lastInnerPoint = Offset(
-            x = progressBarStart.x,
-            y = progressBarStart.y
-        )
+        var lastInnerPoint: Offset
 
         var lastOuterPoint = Offset(
             x = progressBarStart.x,
@@ -342,7 +422,7 @@ private fun DrawScope.drawSpiralProgressBar(
             val cubicBezier = spiralArcToBezier(
                 center,
                 progressBarRadius,
-                128f,
+                size.minDimension * pitchFraction,
                 135f,
                 0f + 30 * i,
                 0f + 30 * i + 30
@@ -366,7 +446,8 @@ private fun DrawScope.drawSpiralProgressBar(
         if (remainSpiralPart > 0f) {
             val remainCubicBezier = spiralArcToBezier(
                 center,
-                progressBarRadius, 128f,
+                progressBarRadius,
+                size.minDimension * pitchFraction,
                 135f,
                 0f + 30 * fullSpiralParts,
                 0f + 30 * fullSpiralParts + remainSpiralPart
@@ -440,8 +521,8 @@ private fun DrawScope.drawSpiralProgressBar(
         center.x,
         center.y,
         intArrayOf(
-            Color(0xff1650f5).toArgb(),
-            Color(0xff1592f5).toArgb()
+            sweepGradientStartColor.toArgb(),
+            sweepGradientEndColor.toArgb()
         ),
         null
     )
